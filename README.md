@@ -10,27 +10,13 @@ agent runtime (this repo)
   → registry → Flux → Argo
 ```
 
-## What this is / is not
-
-| Is | Is not |
-| --- | --- |
-| Review agent first (diff → findings + risk) | kiln — hermetic *build* engine |
-| Coding agent later (allowlisted paths, bot PRs) | ssf — signing / SBOM / policy |
-| OPAR-style loop + capability gates | athena-agents red/offensive skills |
-| Callee of kiln for verify | `platform/ai-inference` (SOC triage only) |
-| Human merge gate always | Autonomous merge / promote |
-
-kiln’s “sandbox” means Linux namespace isolation around **build targets**. Agents do **not** live inside kiln; they **call** kiln.
-
 ## Status
 
-Scaffold (F0→F2 path). Heuristic review runs without an LLM. LLM backends and GitHub App wiring come next.
-
-| Phase | Intent | Here |
+| Phase | Intent | Status |
 | --- | --- | --- |
-| F0 | ADR + vocabulary | ✅ (core-nexus ADR 0009) |
-| F1 | kiln verify on PR SHA | stub client + docs |
-| F2 | Review agent + human gate | CLI + heuristics + safety |
+| F0 | ADR + vocabulary | ✅ |
+| F1 | kiln verify on PR SHA | ✅ schema validate + `kiln run` callee |
+| F2 | Review agent + check payload | ✅ heuristics + Check Run JSON; LLM stub |
 | F3 | Coding agent | deferred |
 | F4 | Signed model promote | deferred |
 
@@ -39,40 +25,58 @@ Scaffold (F0→F2 path). Heuristic review runs without an LLM. LLM backends and 
 ```bash
 pip install -e ".[dev]"
 factory-agents --help
-factory-agents review --diff tests/fixtures/sample.diff
 ```
 
-## Review CLI
+## Commands
 
 ```bash
-# Heuristic review of a unified diff (no LLM, no merge)
-factory-agents review --diff path/to.patch --json
+# Heuristic review (exit 1 on high/critical)
+factory-agents review --diff tests/fixtures/sample.diff --json
 
-# Optional: ask kiln to run a verify pipeline (requires kiln on PATH)
-factory-agents kiln-verify --pipeline config/kiln-verify.example.json --dry-run
+# Optional LLM hook (stub)
+factory-agents review --diff tests/fixtures/sample.diff --llm echo
+
+# GitHub Check Run JSON (does not POST — wire App next)
+factory-agents check --diff tests/fixtures/sample.diff --sha "$GITHUB_SHA" \
+  --kiln-pipeline config/kiln-verify.example.json
+
+# kiln pipeline schema + dry-run plan
+factory-agents kiln-validate --pipeline config/kiln-verify.example.json
+factory-agents kiln-verify --pipeline config/kiln-verify.example.json
+# execute for real when kiln-cli is installed:
+# factory-agents kiln-verify --pipeline config/kiln-verify.example.json --no-dry-run
 ```
 
-Exit codes: `0` ok / informational, `1` high-risk findings (check failed), `2` usage/config error.
+kiln manifest shape (KLN-D-02 / ssf `pkg/kiln`):
+
+```json
+{
+  "version": "1",
+  "targets": {
+    "lint": {
+      "run": { "interpreter": "bash", "code": "ruff check .\n" }
+    }
+  }
+}
+```
 
 ## Safety defaults
 
-- **Never merges** and never pushes to protected defaults.
-- Path allowlists / denylists via `config/`.
-- Capability gates: `review.write_comment` may be enabled; `git.push_main` and `git.merge` are hard-denied.
-- High-risk findings require human approval (GitHub + Nexus Console Approvals).
+- **Never merges**; `git.merge` / push-to-protected / promote are hard-denied.
+- Path deny for `.env`, keys, `*secret*`.
+- High/critical → Check conclusion `action_required` + `needs_human_review`.
 
 ## Layout
 
 ```
-factory_agents/          # Python package
-  review/                # OPAR review loop + heuristics
-  kiln_client.py         # invoke kiln (callee)
-  safety.py              # allowlist + capability gates
-  models.py              # Finding / ReviewReport schemas
-config/                  # example allowlist + capabilities
-tests/
+factory_agents/
+  review/           # OPAR + heuristics
+  kiln_client.py    # kiln validate/run callee
+  github_check.py   # Check Run payload
+  llm.py            # none|echo backends (real models later)
+config/kiln-verify.example.json
 ```
 
 ## License
 
-Dual MIT / Apache-2.0 (same as kiln and ssf).
+Dual MIT / Apache-2.0.

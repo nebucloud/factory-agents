@@ -16,5 +16,12 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check .
       - run: pytest -q
-      - run: factory-agents review --diff tests/fixtures/sample.diff --json
+      - name: kiln schema dry-run
+        run: factory-agents kiln-verify --pipeline config/kiln-verify.example.json
+      - name: check payload
+        run: >
+          factory-agents check
+          --diff tests/fixtures/sample.diff
+          --sha "${{ github.sha }}"
+          --kiln-pipeline config/kiln-verify.example.json
         continue-on-error: true

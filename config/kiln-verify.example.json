@@ -1,15 +1,27 @@
 {
-  "version": 1,
+  "version": "1",
   "metadata": {
-    "purpose": "example kiln verify pipeline — agents call kiln; they are not kiln",
-    "adr": "0009"
+    "purpose": "factory-agents F1 hermetic verify example",
+    "adr": "0009",
+    "note": "Matches kiln-core Pipeline JSON (KLN-D-02). Agents call kiln; they are not kiln."
   },
   "targets": {
+    "unit_tests": {
+      "run": {
+        "interpreter": "bash",
+        "code": "set -euo pipefail\npython -m pytest -q\n"
+      },
+      "inputs": ["source"],
+      "outputs": ["test_report"]
+    },
     "lint": {
-      "description": "placeholder — replace with real kiln target for your repo",
-      "shell": {
-        "command": ["echo", "kiln-verify-placeholder"]
-      }
+      "run": {
+        "interpreter": "bash",
+        "code": "set -euo pipefail\nruff check .\n"
+      },
+      "requires": ["unit_tests"],
+      "inputs": ["source"],
+      "outputs": ["lint_report"]
     }
   }
 }
