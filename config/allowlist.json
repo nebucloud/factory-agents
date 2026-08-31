@@ -1,0 +1,11 @@
+{
+  "allowed_path_globs": ["**/*"],
+  "denied_path_globs": [
+    "**/.env",
+    "**/.env.*",
+    "**/cosign.key",
+    "**/*credential*",
+    "**/*secret*"
+  ],
+  "comment": "Example path policy for review agents (ADR 0009)."
+}

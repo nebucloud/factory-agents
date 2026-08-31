@@ -1,0 +1,15 @@
+{
+  "capabilities": [
+    "review.read_diff",
+    "review.write_report",
+    "review.write_comment"
+  ],
+  "hard_denied_always": [
+    "git.merge",
+    "git.push_main",
+    "git.push_protected",
+    "registry.promote",
+    "argo.sync"
+  ],
+  "comment": "Merge/promote capabilities cannot be enabled — enforced in safety.py."
+}

@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "metadata": {
+    "purpose": "example kiln verify pipeline — agents call kiln; they are not kiln",
+    "adr": "0009"
+  },
+  "targets": {
+    "lint": {
+      "description": "placeholder — replace with real kiln target for your repo",
+      "shell": {
+        "command": ["echo", "kiln-verify-placeholder"]
+      }
+    }
+  }
+}
