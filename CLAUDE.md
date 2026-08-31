@@ -23,6 +23,7 @@ pip install -e ".[dev]"
 pytest -q
 ruff check .
 factory-agents review --diff tests/fixtures/sample.diff --json
+# With Ollama: factory-agents review --diff … --llm ollama --llm-config config/llm.example.toml
 ```
 
 ## Conventions

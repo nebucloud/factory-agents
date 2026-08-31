@@ -12,6 +12,7 @@ from factory_agents.github_check import check_run_from_report, parse_github_even
 from factory_agents.kiln_client import KilnError, validate_pipeline_file
 from factory_agents.kiln_client import verify as kiln_verify
 from factory_agents.llm import get_llm
+from factory_agents.llm.config import load_settings
 from factory_agents.review import run_review
 from factory_agents.risk import exit_code_for_risk
 from factory_agents.safety import SafetyError, SafetyPolicy
@@ -37,7 +38,13 @@ def main(argv: list[str] | None = None) -> int:
     p_review.add_argument(
         "--llm",
         default="none",
-        help="LLM backend: none|echo (default none)",
+        help="LLM backend: none|echo|ollama|openai|vllm (default none)",
+    )
+    p_review.add_argument(
+        "--llm-config",
+        type=Path,
+        default=None,
+        help="Optional TOML (see config/llm.example.toml)",
     )
 
     p_check = sub.add_parser(
@@ -54,6 +61,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_check.add_argument("--config-dir", type=Path, default=None)
     p_check.add_argument("--llm", default="none")
+    p_check.add_argument("--llm-config", type=Path, default=None)
     p_check.add_argument(
         "--kiln-pipeline",
         type=Path,
@@ -99,9 +107,17 @@ def _policy(config_dir: Path | None) -> SafetyPolicy:
     return SafetyPolicy()
 
 
+def _llm(args: argparse.Namespace):
+    settings = load_settings(
+        backend=args.llm,
+        config_path=getattr(args, "llm_config", None),
+    )
+    return get_llm(args.llm, settings=settings)
+
+
 def _cmd_review(args: argparse.Namespace) -> int:
     text = args.diff.read_text(encoding="utf-8")
-    report = run_review(text, policy=_policy(args.config_dir), llm=get_llm(args.llm))
+    report = run_review(text, policy=_policy(args.config_dir), llm=_llm(args))
     if args.json:
         print(report.model_dump_json(indent=2))
     else:
@@ -125,7 +141,7 @@ def _cmd_check(args: argparse.Namespace) -> int:
         sha = "0000000000000000000000000000000000000000"
 
     text = args.diff.read_text(encoding="utf-8")
-    report = run_review(text, policy=_policy(args.config_dir), llm=get_llm(args.llm))
+    report = run_review(text, policy=_policy(args.config_dir), llm=_llm(args))
 
     kiln_info = None
     if args.kiln_pipeline:

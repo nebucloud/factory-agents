@@ -12,6 +12,12 @@ def test_get_llm_none():
     assert get_llm("none").review_diff("x") == []
 
 
+def test_get_llm_ollama_factory():
+    llm = get_llm("ollama")
+    assert hasattr(llm, "backend_id")
+    assert "ollama:" in llm.backend_id
+
+
 def test_merge_preserves_merge_allowed_false():
     base = ReviewReport(summary="s", merge_allowed=False)
     out = merge_llm_findings(base, EchoLLM(), "diff")

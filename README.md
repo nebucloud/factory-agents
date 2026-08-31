@@ -16,7 +16,7 @@ agent runtime (this repo)
 | --- | --- | --- |
 | F0 | ADR + vocabulary | ✅ |
 | F1 | kiln verify on PR SHA | ✅ schema validate + `kiln run` callee |
-| F2 | Review agent + check payload | ✅ heuristics + Check Run JSON; LLM stub |
+| F2 | Review agent + check payload | ✅ heuristics + Check Run JSON + **Ollama/OpenAI/vLLM** |
 | F3 | Coding agent | deferred |
 | F4 | Signed model promote | deferred |
 
@@ -35,6 +35,14 @@ factory-agents review --diff tests/fixtures/sample.diff --json
 
 # Optional LLM hook (stub)
 factory-agents review --diff tests/fixtures/sample.diff --llm echo
+
+# Real local model via Ollama (requires ollama serve + pulled model)
+factory-agents review --diff tests/fixtures/sample.diff --llm ollama \
+  --llm-config config/llm.example.toml
+
+# OpenAI-compatible (OpenAI API or vLLM)
+FACTORY_AGENTS_LLM_MODEL=gpt-4o-mini OPENAI_API_KEY=sk-... \
+  factory-agents review --diff tests/fixtures/sample.diff --llm openai
 
 # GitHub Check Run JSON (does not POST — wire App next)
 factory-agents check --diff tests/fixtures/sample.diff --sha "$GITHUB_SHA" \
@@ -73,8 +81,9 @@ factory_agents/
   review/           # OPAR + heuristics
   kiln_client.py    # kiln validate/run callee
   github_check.py   # Check Run payload
-  llm.py            # none|echo backends (real models later)
+  llm/               # none|echo|ollama|openai|vllm backends
 config/kiln-verify.example.json
+config/llm.example.toml
 ```
 
 ## License

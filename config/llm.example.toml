@@ -1,0 +1,10 @@
+# Example LLM config for factory-agents review.
+# Override with env: FACTORY_AGENTS_LLM, FACTORY_AGENTS_LLM_URL,
+# FACTORY_AGENTS_LLM_MODEL, FACTORY_AGENTS_LLM_API_KEY.
+
+[backend]
+type = "ollama"
+url = "http://127.0.0.1:11434"
+model = "llama3.2"
+timeout_seconds = 120
+max_diff_chars = 48000
