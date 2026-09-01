@@ -16,7 +16,7 @@ agent runtime (this repo)
 | --- | --- | --- |
 | F0 | ADR + vocabulary | ✅ |
 | F1 | kiln verify on PR SHA | ✅ schema validate + `kiln run` callee |
-| F2 | Review agent + check payload | ✅ heuristics + Check Run POST + **Ollama/OpenAI/vLLM** |
+| F2 | Review agent + check payload | ✅ Check Run POST + gateway approvals notify |
 | F3 | Coding agent | deferred |
 | F4 | Signed model promote | deferred |
 
@@ -86,6 +86,7 @@ factory_agents/
   kiln_client.py    # kiln validate/run callee
   github_check.py   # Check Run payload
   github_api.py     # POST check-runs (token / App auth)
+  gateway_notify.py # Nexus gateway webhook for high/critical
   llm/               # none|echo|ollama|openai|vllm backends
 config/kiln-verify.example.json
 config/llm.example.toml

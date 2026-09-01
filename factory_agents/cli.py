@@ -8,6 +8,12 @@ import sys
 from pathlib import Path
 
 from factory_agents import __version__
+from factory_agents.gateway_notify import (
+    GatewayNotifyError,
+    notify_gateway,
+    resolve_gateway_token,
+    resolve_gateway_url,
+)
 from factory_agents.github_api import (
     GitHubAPIError,
     create_check_run,
@@ -93,6 +99,22 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Bearer token (default: GITHUB_TOKEN / GitHub App)",
     )
+    p_check.add_argument(
+        "--notify-gateway",
+        default=None,
+        help="Nexus gateway base URL (or FACTORY_AGENTS_GATEWAY_URL)",
+    )
+    p_check.add_argument(
+        "--gateway-token",
+        default=None,
+        help="Webhook token (or FACTORY_AGENTS_GATEWAY_TOKEN)",
+    )
+    p_check.add_argument(
+        "--pr-number",
+        type=int,
+        default=None,
+        help="PR number for Console Approvals target label",
+    )
 
     p_kiln = sub.add_parser("kiln-verify", help="Validate/run a kiln pipeline JSON")
     p_kiln.add_argument("--pipeline", type=Path, required=True)
@@ -120,7 +142,7 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_kiln(args)
         if args.cmd == "kiln-validate":
             return _cmd_kiln_validate(args)
-    except (SafetyError, KilnError, GitHubAPIError, OSError, ValueError) as exc:
+    except (SafetyError, KilnError, GitHubAPIError, GatewayNotifyError, OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     return 2
@@ -157,11 +179,14 @@ def _cmd_review(args: argparse.Namespace) -> int:
 
 def _cmd_check(args: argparse.Namespace) -> int:
     sha = args.sha
+    pr_number = args.pr_number
     if args.event:
         event = json.loads(args.event.read_text(encoding="utf-8"))
         ref = parse_github_event(event)
         if ref and ref.head_sha:
             sha = sha or ref.head_sha
+        if ref and ref.number and pr_number is None:
+            pr_number = ref.number
     if not sha:
         sha = "0000000000000000000000000000000000000000"
 
@@ -184,22 +209,47 @@ def _cmd_check(args: argparse.Namespace) -> int:
         payload["kiln_verify"] = kiln_info
     print(json.dumps(payload, indent=2))
 
+    check_run_url: str | None = None
     if args.post:
         token = resolve_token(token=args.token)
         repo = resolve_repository(args.repo)
         result = create_check_run(repo, check, token=token, annotations=annotations)
+        check_run_url = result.get("html_url")
         print(
             json.dumps(
                 {
                     "posted": True,
                     "check_run_id": result.get("id"),
-                    "html_url": result.get("html_url"),
+                    "html_url": check_run_url,
                     "conclusion": result.get("conclusion"),
                 },
                 indent=2,
             ),
             file=sys.stderr,
         )
+    else:
+        repo = args.repo or None
+
+    gateway_url = resolve_gateway_url(args.notify_gateway)
+    gateway_token = resolve_gateway_token(args.gateway_token)
+    if gateway_url and gateway_token:
+        notify_repo = repo or resolve_repository(None)
+        notify_result = notify_gateway(
+            report,
+            repo=notify_repo,
+            head_sha=sha,
+            gateway_url=gateway_url,
+            token=gateway_token,
+            pr_number=pr_number,
+            check_run_url=check_run_url if isinstance(check_run_url, str) else None,
+        )
+        print(json.dumps(notify_result, indent=2), file=sys.stderr)
+    elif gateway_url or gateway_token:
+        print(
+            "error: both gateway URL and token required for notify",
+            file=sys.stderr,
+        )
+        return 2
 
     code = exit_code_for_risk(report.risk_max)
     if kiln_info and kiln_info.get("status") == "invalid":
