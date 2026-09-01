@@ -8,7 +8,17 @@ import sys
 from pathlib import Path
 
 from factory_agents import __version__
-from factory_agents.github_check import check_run_from_report, parse_github_event
+from factory_agents.github_api import (
+    GitHubAPIError,
+    create_check_run,
+    resolve_repository,
+    resolve_token,
+)
+from factory_agents.github_check import (
+    annotations_from_report,
+    check_run_from_report,
+    parse_github_event,
+)
 from factory_agents.kiln_client import KilnError, validate_pipeline_file
 from factory_agents.kiln_client import verify as kiln_verify
 from factory_agents.llm import get_llm
@@ -49,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p_check = sub.add_parser(
         "check",
-        help="Review + emit GitHub Check Run JSON (does not post to API)",
+        help="Review + emit GitHub Check Run JSON; optionally POST to GitHub API",
     )
     p_check.add_argument("--diff", type=Path, required=True)
     p_check.add_argument("--sha", default="", help="head SHA (or from --event)")
@@ -67,6 +77,21 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         default=None,
         help="Optional kiln pipeline to schema-validate / dry-run",
+    )
+    p_check.add_argument(
+        "--post",
+        action="store_true",
+        help="POST Check Run to GitHub (needs GITHUB_TOKEN or App credentials)",
+    )
+    p_check.add_argument(
+        "--repo",
+        default=None,
+        help="owner/name (default: GITHUB_REPOSITORY)",
+    )
+    p_check.add_argument(
+        "--token",
+        default=None,
+        help="Bearer token (default: GITHUB_TOKEN / GitHub App)",
     )
 
     p_kiln = sub.add_parser("kiln-verify", help="Validate/run a kiln pipeline JSON")
@@ -95,7 +120,7 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_kiln(args)
         if args.cmd == "kiln-validate":
             return _cmd_kiln_validate(args)
-    except (SafetyError, KilnError, OSError, ValueError) as exc:
+    except (SafetyError, KilnError, GitHubAPIError, OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     return 2
@@ -149,10 +174,32 @@ def _cmd_check(args: argparse.Namespace) -> int:
         report.kiln_verify = kiln_info
 
     check = check_run_from_report(report, head_sha=sha)
+    annotations = annotations_from_report(report)
     payload = check.model_dump(exclude_none=True)
+    if annotations:
+        payload["output"]["annotations"] = [
+            ann.model_dump(exclude_none=True) for ann in annotations
+        ]
     if kiln_info is not None:
         payload["kiln_verify"] = kiln_info
     print(json.dumps(payload, indent=2))
+
+    if args.post:
+        token = resolve_token(token=args.token)
+        repo = resolve_repository(args.repo)
+        result = create_check_run(repo, check, token=token, annotations=annotations)
+        print(
+            json.dumps(
+                {
+                    "posted": True,
+                    "check_run_id": result.get("id"),
+                    "html_url": result.get("html_url"),
+                    "conclusion": result.get("conclusion"),
+                },
+                indent=2,
+            ),
+            file=sys.stderr,
+        )
 
     code = exit_code_for_risk(report.risk_max)
     if kiln_info and kiln_info.get("status") == "invalid":

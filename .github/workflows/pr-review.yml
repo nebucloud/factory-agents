@@ -1,0 +1,42 @@
+name: pr-review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: read
+
+jobs:
+  factory-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install factory-agents
+        run: pip install -e ".[dev]"
+
+      - name: Build PR diff
+        run: |
+          git diff \
+            "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}" \
+            > /tmp/pr.diff
+
+      - name: Post factory-agents review check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          factory-agents check \
+            --diff /tmp/pr.diff \
+            --sha "${{ github.event.pull_request.head.sha }}" \
+            --kiln-pipeline config/kiln-verify.example.json \
+            --post

@@ -16,7 +16,7 @@ agent runtime (this repo)
 | --- | --- | --- |
 | F0 | ADR + vocabulary | ✅ |
 | F1 | kiln verify on PR SHA | ✅ schema validate + `kiln run` callee |
-| F2 | Review agent + check payload | ✅ heuristics + Check Run JSON + **Ollama/OpenAI/vLLM** |
+| F2 | Review agent + check payload | ✅ heuristics + Check Run POST + **Ollama/OpenAI/vLLM** |
 | F3 | Coding agent | deferred |
 | F4 | Signed model promote | deferred |
 
@@ -44,9 +44,13 @@ factory-agents review --diff tests/fixtures/sample.diff --llm ollama \
 FACTORY_AGENTS_LLM_MODEL=gpt-4o-mini OPENAI_API_KEY=sk-... \
   factory-agents review --diff tests/fixtures/sample.diff --llm openai
 
-# GitHub Check Run JSON (does not POST — wire App next)
+# GitHub Check Run JSON (local only)
 factory-agents check --diff tests/fixtures/sample.diff --sha "$GITHUB_SHA" \
   --kiln-pipeline config/kiln-verify.example.json
+
+# POST Check Run (Actions: GITHUB_TOKEN; App: GITHUB_APP_ID + INSTALLATION_ID + key)
+factory-agents check --diff tests/fixtures/sample.diff --sha "$GITHUB_SHA" --post \
+  --repo nebucloud/factory-agents --kiln-pipeline config/kiln-verify.example.json
 
 # kiln pipeline schema + dry-run plan
 factory-agents kiln-validate --pipeline config/kiln-verify.example.json
@@ -81,6 +85,7 @@ factory_agents/
   review/           # OPAR + heuristics
   kiln_client.py    # kiln validate/run callee
   github_check.py   # Check Run payload
+  github_api.py     # POST check-runs (token / App auth)
   llm/               # none|echo|ollama|openai|vllm backends
 config/kiln-verify.example.json
 config/llm.example.toml
